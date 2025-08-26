@@ -375,32 +375,42 @@
     }
 
     function recalc() {
-      const plazo = parseInt($("plazo").value || '0', 10) || 0;
-      const tc = parseNum($("tc"));
-      const usd = parseNum($("usd"));
+      const plazo  = parseInt($("plazo").value || '0', 10) || 0;
+      const tc     = parseNum($("tc"));
+      const usd    = parseNum($("usd"));
       const piePct = parseInt($("piePct").value || '0', 10) / 100;
 
+      // Base
       const ventaClp = usd * tc;
-      const gastos = (0.0098 * ventaClp / 12 * plazo) + (0.0119 * ventaClp);
-      const total = ventaClp + gastos;
 
-      // Pie sobre Valor Venta CLP (no incluye gastos)
+      // Pie sobre Valor Venta CLP (NO incluye gastos)
       const pieClp = Math.max(ventaClp * piePct, 0);
+
+      // === Gastos asociados por componentes ===
+      const seguro     = 0.0098 * ventaClp / 12 * plazo;
+      const legal      = 0.0017362 * ventaClp;
+      const marketing  = 0.0002 * ventaClp;
+      const additional = 0.01 * (seguro + legal + marketing + (ventaClp - pieClp));
+      const gastos     = seguro + legal + marketing + additional;
+
+      // Totales
+      const total   = ventaClp + gastos;
       const montoFin = total - pieClp;
 
+      // Cuota
       const n = plazo;
       const tasaAnual = ({12:0.1172,24:0.1165,36:0.1170,48:0.1177,60:0.1192})[plazo] || 0;
       const r = tasaAnual / 12; // nominal mensual
       const pmt = (r > 0 && n > 0) ? (montoFin * r) / (1 - Math.pow(1 + r, -n)) : 0;
 
       // Salidas (readonly)
-      $("ventaClp").value       = ventaClp > 0 ? fmtCLP.format(ventaClp) : '';
-      $("gastosAsociados").value= gastos   > 0 ? fmtCLP.format(gastos)   : '';
-      $("totalClp").value       = total    > 0 ? fmtCLP.format(total)    : '';
-      $("pieClp").value         = fmtCLP.format(pieClp);
-      $("numCuotas").value      = n ? n : '';
-      $("montoFinanciar").value = montoFin > 0 ? fmtCLP.format(montoFin) : '';
-      $("cuotaMensual").value   = pmt > 0 ? fmtCLP.format(pmt) : '';
+      $("ventaClp").value        = ventaClp > 0 ? fmtCLP.format(ventaClp) : '';
+      $("gastosAsociados").value = gastos   > 0 ? fmtCLP.format(gastos)   : '';
+      $("totalClp").value        = total    > 0 ? fmtCLP.format(total)    : '';
+      $("pieClp").value          = fmtCLP.format(pieClp);
+      $("numCuotas").value       = n ? n : '';
+      $("montoFinanciar").value  = montoFin > 0 ? fmtCLP.format(montoFin) : '';
+      $("cuotaMensual").value    = pmt > 0 ? fmtCLP.format(pmt) : '';
 
       // Completar PDF (sin tasa)
       $("pdfNumeroCotizacion").textContent = $("numeroCotizacion").value;
@@ -420,7 +430,7 @@
       $("pdfMontoFinanciar").textContent   = montoFin ? fmtCLP.format(montoFin) : '—';
       $("pdfCuota").textContent            = pmt ? fmtCLP.format(pmt) : '—';
 
-      $("pdfMeta").textContent = `Sin IVA · Condiciones referenciales`;
+      $("pdfMeta").textContent  = `Sin IVA · Condiciones referenciales`;
       $("timestamp").textContent = new Date().toLocaleString('es-CL');
     }
 
@@ -451,7 +461,7 @@
     const SHEET_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycby3N9ukgaFiGycgu3DPk3KJb9nsZwzyNyyMFv8XO0GRupWG2lDH14SaEJHiMF_WQy26/exec';
 
     // PON AQUÍ EL MISMO SECRETO QUE EN Apps Script (SHARED_SECRET)
-    const SHEET_SECRET = '10770389'; // <--- REEMPLAZA por tu valor real
+    const SHEET_SECRET = '10770389'; // <--- REEMPLAZA si usas otro en el servidor
 
     // En local: dispara sin esperar respuesta para evitar CORS
     const FIRE_AND_FORGET = true;
@@ -477,6 +487,7 @@
       const montoFin  = getNumberFromText(document.getElementById("montoFinanciar").value);
       const cuota     = getNumberFromText(document.getElementById("cuotaMensual").value);
 
+      // El % de pie se define sobre ventaClp (no total)
       const piePct = ventaClp > 0 ? Math.round((pieClp / ventaClp) * 100) : 0;
 
       const data = {
@@ -572,4 +583,3 @@
   </script>
 </body>
 </html>
-
