@@ -6,10 +6,45 @@
   <title>Cotizador de Financiamiento — CAT Financial</title>
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- html2pdf: versión estable 0.9.3 SIN integrity/crossorigin -->
+  <!-- html2pdf 0.9.3 SIN integrity/crossorigin -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+
   <style>
     @media print { .no-print { display: none !important; } }
+
+    /* ===== Mejora de estética PDF ===== */
+    #pdfArea {
+      --pdf-border: #e5e7eb; /* gray-200 */
+      --pdf-muted: #6b7280;  /* gray-500 */
+    }
+    #pdfArea .pdf-header {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--pdf-border);
+    }
+    #pdfArea .pdf-brand-title { font-size: 11pt; color: var(--pdf-muted); }
+    #pdfArea .pdf-h1          { font-size: 18pt; font-weight: 700; }
+    #pdfArea .pdf-meta        { font-size: 9.5pt; color: var(--pdf-muted); }
+    #pdfArea .pdf-card {
+      margin-top: 12px; padding: 12px;
+      border: 1px solid var(--pdf-border); border-radius: 8px; background: #fafafa;
+    }
+    #pdfArea .pdf-amount { font-size: 18pt; font-weight: 800; }
+
+    /* Tabla compacta para el bloque de datos */
+    #pdfArea table.pdf-table {
+      width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 10.5pt;
+    }
+    #pdfArea table.pdf-table th,
+    #pdfArea table.pdf-table td {
+      border: 1px solid var(--pdf-border); padding: 6px 8px; vertical-align: top;
+    }
+    #pdfArea table.pdf-table th {
+      background: #f9fafb; text-align: left; white-space: nowrap;
+    }
+
+    /* Evitar saltos feos en PDF */
+    #pdfArea, #pdfArea * { page-break-inside: avoid; }
+    @media print { #pdfArea { padding: 10mm; } }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -18,8 +53,8 @@
     <header class="rounded-2xl overflow-hidden shadow mb-6">
       <div class="bg-black text-white px-6 py-4 flex items-center gap-4">
         <div class="flex items-center gap-4">
-          <!-- Usa SIEMPRE ruta relativa, no C:\... -->
-          <img src="Imagenes/Logo.CF.jpg" alt="CAT Financial" class="h-8 w-auto" />
+          <!-- Logo más grande -->
+          <img id="logoHeader" src="Imagenes/Logo.CF.jpg" alt="CAT Financial" class="h-14 w-auto">
           <div>
             <h1 class="text-xl md:text-2xl font-bold">Cotizador de Financiamiento CAT Financial</h1>
             <p class="text-sm text-gray-300">Calculadora de cuotas referenciales · Sin IVA</p>
@@ -91,10 +126,13 @@
             </select>
           </div>
 
-          <!-- Tipo de Cambio -->
-          <div>
+          <!-- Tipo de Cambio (auto al cargar, editable) -->
+          <div class="md:col-span-2">
             <label class="block text-sm font-medium">Tipo de Cambio (USD → CLP)</label>
-            <input id="tc" type="number" step="0.01" min="0" placeholder="Ej: 950" class="mt-1 w-full rounded border-gray-300">
+            <div class="mt-1 flex items-center gap-2">
+              <input id="tc" type="number" step="1" min="0" placeholder="Cargando TC…" class="w-48 rounded border-gray-300">
+              <span id="tcStamp" class="text-xs text-gray-500"></span>
+            </div>
           </div>
 
           <!-- Valor Venta USD -->
@@ -113,7 +151,6 @@
           <div>
             <label class="block text-sm font-medium">Gastos Asociados (CLP)</label>
             <input id="gastosAsociados" type="text" class="mt-1 w-full rounded border-gray-300 bg-gray-100" readonly>
-            <!-- Fórmula oculta en UI -->
           </div>
 
           <!-- Total CLP -->
@@ -122,7 +159,7 @@
             <input id="totalClp" type="text" class="mt-1 w-full rounded border-gray-300 bg-gray-100" readonly>
           </div>
 
-          <!-- Pie % (ahora sobre Valor Venta CLP) -->
+          <!-- Pie % (sobre Valor Venta CLP) -->
           <div>
             <label class="block text-sm font-medium">Pie (% de Valor Venta CLP)</label>
             <select id="piePct" class="mt-1 w-full rounded border-gray-300">
@@ -167,13 +204,17 @@
       <!-- Columna derecha: T&C y contactos -->
       <aside class="bg-white rounded-2xl shadow p-5">
         <h2 class="text-lg font-semibold mb-3">Términos y Condiciones</h2>
-        <ol class="list-decimal pl-5 space-y-2 text-sm text-gray-700">
-          <li>Financiación directa Cat Financial, valores netos y cuotas aproximadas masivas..</li>
-          <li>El financiamiento, las tasas publicadas y otros parámetros están sujetos a la presentación y revisión de la documentación y la aprobación de crédito por parte de Caterpillar Leasing Chile S.A.</li>
-          <li>Pueden aplicarse términos y condiciones adicionales.</li>
-          <li>Las condiciones financieras se revisarán de acuerdo con las variaciones del mercado y los costos de endeudamiento. De esta manera, las tarifas y otros parámetros pueden cambiar.</li>
-          <li>La transacción está sujeta a un fee financiado junto a las cuotas, lo cual está incluido en la cuota mensual aproximada mostrada previamente, además varía dependiendo de la cuota del seguro.</li>
-        </ol>
+        <!-- === TÉRMINOS & CONDICIONES (editar solo aquí) === -->
+        <div id="tycBloque">
+          <ol class="list-decimal pl-5 space-y-2 text-sm text-gray-700">
+            <li>Financiación directa Cat Financial, valores netos y cuotas aproximadas masivas..</li>
+            <li>El financiamiento, las tasas publicadas y otros parámetros están sujetos a la presentación y revisión de la documentación y la aprobación de crédito por parte de Caterpillar Leasing Chile S.A.</li>
+            <li>Pueden aplicarse términos y condiciones adicionales.</li>
+            <li>Las condiciones financieras se revisarán de acuerdo con las variaciones del mercado y los costos de endeudamiento. De esta manera, las tarifas y otros parámetros pueden cambiar.</li>
+            <li>La transacción está sujeta a un fee financiado junto a las cuotas, lo cual está incluido en la cuota mensual aproximada mostrada previamente, además varía dependiendo de la cuota del seguro.</li>
+          </ol>
+        </div>
+        <!-- === FIN TÉRMINOS & CONDICIONES === -->
 
         <h2 class="text-lg font-semibold mt-6 mb-3">Contactos Comerciales</h2>
         <div class="space-y-3 text-sm">
@@ -187,13 +228,13 @@
 
     <!-- SECCIÓN EXPORTABLE A PDF -->
     <section id="pdfArea" class="mt-8 bg-white rounded-2xl shadow p-6">
-      <div class="flex items-start gap-4 border-b pb-4">
-        <!-- Logo también en el PDF -->
-        <img src="Imagenes/Logo.CF.jpg" alt="CAT Financial" class="h-8 w-auto" />
+      <div class="pdf-header">
+        <!-- Logo más grande en PDF -->
+        <img src="Imagenes/Logo.CF.jpg" alt="CAT Financial" class="h-14 w-auto" />
         <div class="flex-1">
-          <div class="text-sm text-gray-500">Cotizador de Financiamiento CAT Financial</div>
-          <h3 class="text-xl font-bold">Resumen de cotización</h3>
-          <div id="pdfMeta" class="text-sm text-gray-600"></div>
+          <div class="pdf-brand-title">Cotizador de Financiamiento CAT Financial</div>
+          <h3 class="pdf-h1">Resumen de cotización</h3>
+          <div id="pdfMeta" class="pdf-meta"></div>
         </div>
         <div class="text-right text-sm">
           <div id="pdfNumeroCotizacion" class="font-semibold"></div>
@@ -201,28 +242,26 @@
         </div>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-6 mt-4">
-        <div class="space-y-2 text-sm">
-          <div><span class="font-medium">Cliente:</span> <span id="pdfCliente">—</span></div>
-          <div><span class="font-medium">Contacto cliente:</span> <span id="pdfContactoCliente">—</span></div>
-          <div><span class="font-medium">Vendedor:</span> <span id="pdfVendedor">—</span></div>
-          <div><span class="font-medium">Modelo:</span> <span id="pdfModelo">—</span></div>
-          <div><span class="font-medium">Plazo:</span> <span id="pdfPlazo">—</span> meses</div>
-          <!-- TASA ELIMINADA DEL PDF POR CONFIDENCIALIDAD -->
-        </div>
-        <div class="space-y-2 text-sm">
-          <div><span class="font-medium">Tipo de cambio:</span> <span id="pdfTc">—</span></div>
-          <div><span class="font-medium">Valor venta (USD):</span> <span id="pdfUsd">—</span></div>
-          <div><span class="font-medium">Valor venta (CLP):</span> <span id="pdfVentaClp">—</span></div>
-          <div><span class="font-medium">Gastos asociados (CLP):</span> <span id="pdfGastos">—</span></div>
-          <div><span class="font-medium">Total (CLP):</span> <span id="pdfTotal">—</span></div>
-          <div><span class="font-medium">Pie:</span> <span id="pdfPiePct">—</span> (<span id="pdfPieClp">—</span>)</div>
-        </div>
-      </div>
+      <!-- Tabla compacta de datos -->
+      <table class="pdf-table">
+        <tbody>
+          <tr><th>Cliente</th><td id="pdfCliente">—</td></tr>
+          <tr><th>Contacto cliente</th><td id="pdfContactoCliente">—</td></tr>
+          <tr><th>Vendedor</th><td id="pdfVendedor">—</td></tr>
+          <tr><th>Modelo</th><td id="pdfModelo">—</td></tr>
+          <tr><th>Plazo</th><td><span id="pdfPlazo">—</span> meses</td></tr>
+          <tr><th>Tipo de cambio</th><td id="pdfTc">—</td></tr>
+          <tr><th>Valor venta (USD)</th><td id="pdfUsd">—</td></tr>
+          <tr><th>Valor venta (CLP)</th><td id="pdfVentaClp">—</td></tr>
+          <tr><th>Gastos asociados (CLP)</th><td id="pdfGastos">—</td></tr>
+          <tr><th>Total (CLP)</th><td id="pdfTotal">—</td></tr>
+          <tr><th>Pie</th><td><span id="pdfPiePct">—</span> (<span id="pdfPieClp">—</span>)</td></tr>
+        </tbody>
+      </table>
 
-      <div class="mt-4 p-4 border rounded-lg bg-gray-50">
+      <div class="pdf-card">
         <div class="text-sm"><span class="font-semibold">Monto a financiar:</span> <span id="pdfMontoFinanciar">—</span></div>
-        <div class="text-2xl font-bold mt-1">Cuota mensual aproximada: <span id="pdfCuota">—</span></div>
+        <div class="pdf-amount mt-1">Cuota mensual aproximada: <span id="pdfCuota">—</span></div>
       </div>
 
       <div class="mt-6">
@@ -258,7 +297,6 @@
 
     // ===== Utilidades =====
     const fmtCLP = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
-    const fmtPct = new Intl.NumberFormat('es-CL', { style: 'percent', maximumFractionDigits: 2 });
     const $ = (id) => document.getElementById(id);
 
     function todayStr() {
@@ -287,8 +325,53 @@
       localStorage.setItem(key, String(current + 1));
     }
     function parseNum(el, fallback = 0){
-      const v = parseFloat(el.value.replace(/,/g, '.'));
+      const raw = (el.value ?? '').toString().replace(/\./g,'').replace(',', '.');
+      const v = parseFloat(raw);
       return isNaN(v) ? fallback : v;
+    }
+
+    // ===== Tipo de cambio automático (mindicador.cl) =====
+    async function fetchUsdClp_mindicador(){
+      const r = await fetch('https://mindicador.cl/api/dolar', { cache: 'no-store', mode: 'cors' });
+      if (!r.ok) throw new Error('mindicador.cl no respondió OK');
+      const j = await r.json();
+      const ultimo = Array.isArray(j?.serie) ? j.serie[0] : null;
+      const valor = ultimo?.valor;
+      const fecha = ultimo?.fecha;
+      if (!isFinite(valor)) throw new Error('mindicador.cl sin valor válido');
+      return { valor, fecha };
+    }
+    function setTcStamp(ts, apiDateStr = null, error = false){
+      const el = $("tcStamp");
+      if (!el) return;
+      if (error) {
+        el.textContent = 'No se pudo actualizar TC (puedes ingresarlo manualmente)';
+        el.classList.remove('text-gray-500'); el.classList.add('text-red-600');
+        return;
+      }
+      const updatedAt = new Date(ts).toLocaleString('es-CL');
+      let label = `Actualizado: ${updatedAt}`;
+      if (apiDateStr) {
+        const d = new Date(apiDateStr);
+        if (!isNaN(d)) label += ` · Dato del: ${d.toLocaleDateString('es-CL')}`;
+      }
+      el.textContent = label;
+      el.classList.remove('text-red-600'); el.classList.add('text-gray-500');
+    }
+    async function updateTcAuto(){
+      const tcInput = $("tc");
+      if (!tcInput) return;
+      try {
+        const { valor, fecha } = await fetchUsdClp_mindicador();
+        const entero = Math.round(Number(valor));    // sin decimales
+        tcInput.value = String(entero);
+        setTcStamp(Date.now(), fecha, false);
+        recalc();
+      } catch (e) {
+        console.warn('[TC] Error al obtener TC desde mindicador.cl:', e);
+        setTcStamp(null, null, true);
+        recalc();
+      }
     }
 
     function recalc() {
@@ -301,27 +384,25 @@
       const gastos = (0.0098 * ventaClp / 12 * plazo) + (0.0119 * ventaClp);
       const total = ventaClp + gastos;
 
-      // >>> Cambio solicitado: PIE calculado sobre Valor Venta CLP (NO sobre Total)
-      const pieClp = ventaClp * piePct;
-
+      // Pie sobre Valor Venta CLP (no incluye gastos)
+      const pieClp = Math.max(ventaClp * piePct, 0);
       const montoFin = total - pieClp;
 
       const n = plazo;
-      const tasaAnual = tasasPorPlazo[plazo] || 0;
-      const r = tasaAnual / 12; // Tasa nominal mensual (se usa sólo para PMT, no se muestra)
-
+      const tasaAnual = ({12:0.1172,24:0.1165,36:0.1170,48:0.1177,60:0.1192})[plazo] || 0;
+      const r = tasaAnual / 12; // nominal mensual
       const pmt = (r > 0 && n > 0) ? (montoFin * r) / (1 - Math.pow(1 + r, -n)) : 0;
 
       // Salidas (readonly)
       $("ventaClp").value       = ventaClp > 0 ? fmtCLP.format(ventaClp) : '';
       $("gastosAsociados").value= gastos   > 0 ? fmtCLP.format(gastos)   : '';
       $("totalClp").value       = total    > 0 ? fmtCLP.format(total)    : '';
-      $("pieClp").value         = fmtCLP.format(Math.max(pieClp,0));
+      $("pieClp").value         = fmtCLP.format(pieClp);
       $("numCuotas").value      = n ? n : '';
       $("montoFinanciar").value = montoFin > 0 ? fmtCLP.format(montoFin) : '';
       $("cuotaMensual").value   = pmt > 0 ? fmtCLP.format(pmt) : '';
 
-      // Completar PDF (SIN tasa)
+      // Completar PDF (sin tasa)
       $("pdfNumeroCotizacion").textContent = $("numeroCotizacion").value;
       $("pdfFecha").textContent            = $("fecha").value;
       $("pdfCliente").textContent          = $("cliente").value || '—';
@@ -335,11 +416,10 @@
       $("pdfGastos").textContent           = gastos ? fmtCLP.format(gastos) : '—';
       $("pdfTotal").textContent            = total ? fmtCLP.format(total) : '—';
       $("pdfPiePct").textContent           = (piePct * 100).toFixed(0) + '%';
-      $("pdfPieClp").textContent           = fmtCLP.format(Math.max(pieClp,0));
+      $("pdfPieClp").textContent           = fmtCLP.format(pieClp);
       $("pdfMontoFinanciar").textContent   = montoFin ? fmtCLP.format(montoFin) : '—';
       $("pdfCuota").textContent            = pmt ? fmtCLP.format(pmt) : '—';
 
-      // Mensaje meta sin mencionar tasa
       $("pdfMeta").textContent = `Sin IVA · Condiciones referenciales`;
       $("timestamp").textContent = new Date().toLocaleString('es-CL');
     }
@@ -348,8 +428,8 @@
       $("fecha").value = todayStr();
       $("numeroCotizacion").value = nextQuoteNumberPreview();
       $("year").textContent = new Date().getFullYear();
-      recalc();
 
+      // Escuchas que recalculan
       ["plazo","tc","usd","piePct","cliente","contactoCliente","vendedor","modelo"].forEach(id => {
         $(id).addEventListener('input', recalc);
         $(id).addEventListener('change', recalc);
@@ -363,38 +443,132 @@
       if (imgs.length === 0) return;
       await Promise.all(imgs.map(img => (img.decode ? img.decode() : new Promise(res => img.complete ? res() : img.addEventListener('load', res)))));
     }
+  </script>
 
-    document.addEventListener('DOMContentLoaded', () => {
+  <!-- === BLOQUE 1: Integración con Google Sheets (config + funciones) === -->
+  <script>
+    // URL del Web App (tuya)
+    const SHEET_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycby3N9ukgaFiGycgu3DPk3KJb9nsZwzyNyyMFv8XO0GRupWG2lDH14SaEJHiMF_WQy26/exec';
+
+    // PON AQUÍ EL MISMO SECRETO QUE EN Apps Script (SHARED_SECRET)
+    const SHEET_SECRET = 'CFA-2025-ONLY'; // <--- REEMPLAZA por tu valor real
+
+    // En local: dispara sin esperar respuesta para evitar CORS
+    const FIRE_AND_FORGET = true;
+
+    // Convierte texto formateado (CLP) a número JS
+    function getNumberFromText(text) {
+      if (text == null) return 0;
+      const s = String(text).replace(/\./g,'').replace(',', '.').replace(/[^\d.-]/g,'');
+      const v = parseFloat(s);
+      return isFinite(v) ? v : 0;
+    }
+
+    // Recolecta los datos que ya se muestran/calculan en el formulario
+    function collectQuoteDataForSheet() {
+      const plazo = parseInt((document.getElementById("plazo").value || '0'), 10) || 0;
+      const tc    = getNumberFromText(document.getElementById("tc").value);
+      const usd   = getNumberFromText(document.getElementById("usd").value);
+
+      const ventaClp  = getNumberFromText(document.getElementById("ventaClp").value);
+      const gastos    = getNumberFromText(document.getElementById("gastosAsociados").value);
+      const total     = getNumberFromText(document.getElementById("totalClp").value);
+      const pieClp    = getNumberFromText(document.getElementById("pieClp").value);
+      const montoFin  = getNumberFromText(document.getElementById("montoFinanciar").value);
+      const cuota     = getNumberFromText(document.getElementById("cuotaMensual").value);
+
+      const piePct = ventaClp > 0 ? Math.round((pieClp / ventaClp) * 100) : 0;
+
+      const data = {
+        timestamp: new Date().toISOString(),
+        quote_id: document.getElementById("numeroCotizacion").value || '',
+        fecha: document.getElementById("fecha").value || '',
+        cliente: document.getElementById("cliente").value || '',
+        contacto: document.getElementById("contactoCliente").value || '',
+        vendedor: document.getElementById("vendedor").value || '',
+        modelo: document.getElementById("modelo").value || '',
+        plazo_meses: plazo,
+        tc_usdclp: Math.round(tc),
+        valor_venta_usd: Number(usd.toFixed ? usd.toFixed(2) : usd),
+        valor_venta_clp: Math.round(ventaClp),
+        gastos_asociados_clp: Math.round(gastos),
+        total_clp: Math.round(total),
+        pie_pct: piePct,
+        pie_clp: Math.round(pieClp),
+        monto_financiar_clp: Math.round(montoFin),
+        cuota_mensual_clp: Math.round(cuota),
+        secret: SHEET_SECRET // <<-- se envía para validar en servidor
+      };
+
+      return data;
+    }
+
+    // Envía al Web App (local: no-cors; público: cors con JSON)
+    async function sendToGoogleSheet(row){
+      if (FIRE_AND_FORGET) {
+        fetch(SHEET_WEBAPP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify(row)
+        }).catch(err => console.warn('[Sheet] POST no-cors error:', err));
+        return { ok:true, mode:'no-cors' };
+      } else {
+        const res = await fetch(SHEET_WEBAPP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(row)
+        });
+        const data = await res.json().catch(()=>({}));
+        if (!res.ok || !data.ok) throw new Error(`GAS HTTP ${res.status}: ${JSON.stringify(data)}`);
+        return data;
+      }
+    }
+  </script>
+
+  <!-- === BLOQUE 2: Init + Botón PDF/Sheet (flujo unido) === -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // init UI
+      document.getElementById("fecha").value = todayStr();
+      document.getElementById("numeroCotizacion").value = nextQuoteNumberPreview();
+      document.getElementById("year").textContent = new Date().getFullYear();
+
       init();
+      await updateTcAuto(); // carga TC
+      recalc();
 
-      // Botón GENERAR PDF (async/await)
-      $("btnGenerarPDF").addEventListener('click', async () => {
-        recalc();
-        await ensureImagesReady();
-
-        const element = document.getElementById('pdfArea');
-        const opt = {
-          margin: [10,10,10,10],
-          filename: `${$("numeroCotizacion").value || 'Cotizacion'}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, allowTaint: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
+      document.getElementById("btnGenerarPDF").addEventListener('click', async () => {
         try {
-          await html2pdf().from(element).set(opt).save();
-          commitQuoteIncrement();                    // incrementa para la PRÓXIMA
-          $("numeroCotizacion").value = nextQuoteNumberPreview();
           recalc();
+          const row = collectQuoteDataForSheet();
+          await ensureImagesReady();
+
+          const element = document.getElementById('pdfArea');
+          const opt = {
+            margin: [10,10,10,10],
+            filename: `${document.getElementById("numeroCotizacion").value || 'Cotizacion'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, allowTaint: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
+
+          // Ejecuta en paralelo: PDF y envío a Sheets
+          const pdfPromise = html2pdf().from(element).set(opt).save();
+          const sheetPromise = sendToGoogleSheet(row);
+
+          await Promise.allSettled([pdfPromise, sheetPromise]);
+
+          // Prepara siguiente N° de cotización
+          commitQuoteIncrement();
+          document.getElementById("numeroCotizacion").value = nextQuoteNumberPreview();
+          recalc();
+
         } catch (e) {
-          console.error('[PDF] Error al exportar', e);
-          alert('No se pudo generar el PDF. Verifica que el navegador permita descargas y que la imagen exista en Imagenes/Logo.CF.jpg.');
+          console.error('[GENERAR] Error en generación/envío:', e);
+          alert('Hubo un problema generando el PDF o enviando la cotización. Revisa la consola.');
         }
       });
     });
   </script>
 </body>
 </html>
-
-
-
